@@ -1,0 +1,250 @@
+openapi: 3.0.3
+info:
+  title: Task Manager API
+  version: 1.0.0
+  description: |
+    API de gestion de tâches avec authentification JWT.
+    La langue des messages d'erreur dépend des en-têtes `X-Language` ou `Accept-Language` (en, fr, ar).
+servers:
+  - url: http://localhost:5000
+tags:
+  - name: Auth
+  - name: Tasks
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    TaskId:
+      name: id
+      in: path
+      required: true
+      description: Identifiant MongoDB de la tâche
+      schema:
+        type: string
+        example: 665f1c2a9b1e8a0012a4b7c3
+    XLanguage:
+      name: X-Language
+      in: header
+      required: false
+      schema:
+        type: string
+        enum: [en, fr, ar]
+        default: en
+  schemas:
+    Task:
+      type: object
+      properties:
+        _id: { type: string, example: 665f1c2a9b1e8a0012a4b7c3 }
+        title: { type: string, example: Apprendre Swagger }
+        done: { type: boolean, default: false }
+        duration: { type: number, example: 30 }
+      required: [_id, title, done, duration]
+    CreateTaskBody:
+      type: object
+      required: [title, duration]
+      properties:
+        title: { type: string, minLength: 3, example: Apprendre Swagger }
+        duration: { type: number, example: 30 }
+        done: { type: boolean }
+    UpdateTaskBody:
+      type: object
+      properties:
+        title: { type: string, minLength: 3 }
+        duration: { type: number }
+        done: { type: boolean }
+    Credentials:
+      type: object
+      required: [email, password]
+      properties:
+        email: { type: string, format: email, example: user@example.com }
+        password: { type: string, format: password, example: Secret123 }
+    User:
+      type: object
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+    ErrorResponse:
+      type: object
+      properties:
+        success: { type: boolean, example: false }
+        error:
+          type: object
+          properties:
+            code:
+              type: string
+              enum: [VALIDATION_ERROR, RESOURCE_NOT_FOUND, UNAUTHORIZED, FORBIDDEN, DUPLICATE_ENTRY, INTERNAL_ERROR]
+            message: { type: string }
+            details:
+              nullable: true
+              type: array
+              items:
+                type: object
+                properties:
+                  field: { type: string }
+                  message: { type: string }
+  responses:
+    ValidationError:
+      description: Données invalides
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    Unauthorized:
+      description: Token manquant, invalide ou identifiants incorrects
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+    NotFound:
+      description: Ressource introuvable
+      content:
+        application/json:
+          schema: { $ref: "#/components/schemas/ErrorResponse" }
+
+paths:
+  /api/auth/signup:
+    post:
+      tags: [Auth]
+      summary: Créer un compte
+      parameters:
+        - $ref: "#/components/parameters/XLanguage"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credentials" }
+      responses:
+        "201":
+          description: Utilisateur créé
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: "#/components/schemas/User" }
+                  message: { type: string, example: Utilisateur créé avec succès }
+        "400": { $ref: "#/components/responses/ValidationError" }
+  /api/auth/login:
+    post:
+      tags: [Auth]
+      summary: Se connecter et obtenir un JWT (valide 1 jour)
+      parameters:
+        - $ref: "#/components/parameters/XLanguage"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/Credentials" }
+      responses:
+        "200":
+          description: Connexion réussie
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: object
+                    properties:
+                      token: { type: string }
+                  message: { type: string, example: Connexion réussie }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/tasks:
+    get:
+      tags: [Tasks]
+      summary: Lister toutes les tâches
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: Liste des tâches
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data:
+                    type: array
+                    items: { $ref: "#/components/schemas/Task" }
+                  message: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+    post:
+      tags: [Tasks]
+      summary: Créer une tâche
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/CreateTaskBody" }
+      responses:
+        "201":
+          description: Tâche créée
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: "#/components/schemas/Task" }
+                  message: { type: string, example: Tâche créée avec succès }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+
+  /api/tasks/{id}:
+    parameters:
+      - $ref: "#/components/parameters/TaskId"
+    get:
+      tags: [Tasks]
+      summary: Récupérer une tâche par ID
+      security: [{ bearerAuth: [] }]
+      responses:
+        "200":
+          description: La tâche
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: "#/components/schemas/Task" }
+                  message: { type: string }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    patch:
+      tags: [Tasks]
+      summary: Mettre à jour une tâche
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: "#/components/schemas/UpdateTaskBody" }
+      responses:
+        "200":
+          description: Tâche mise à jour
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  data: { $ref: "#/components/schemas/Task" }
+                  message: { type: string }
+        "400": { $ref: "#/components/responses/ValidationError" }
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }
+    delete:
+      tags: [Tasks]
+      summary: Supprimer une tâche
+      security: [{ bearerAuth: [] }]
+      responses:
+        "204":
+          description: Tâche supprimée (pas de contenu)
+        "401": { $ref: "#/components/responses/Unauthorized" }
+        "404": { $ref: "#/components/responses/NotFound" }

@@ -2,6 +2,7 @@ import express from "express";
 import cors from "cors";
 import router from "./router/task.routes.js";
 import authRouter from "./router/auth.routes.js";
+import { setupSwagger } from "./docs/swagger.js";
 // Importe tes middlewares centralisés depuis ton dossier errors
 import { localeMiddleware, notFound, errorHandler } from "./errors/index.js"; 
 
@@ -23,7 +24,7 @@ app.use(localeMiddleware);
 // 4. Déclaration des routes de l'API
 app.use("/api/tasks", router);
 app.use("/api/auth", authRouter);
-
+setupSwagger(app); 
 // 5. Gestion des routes introuvables (404) -> Doit être après toutes les routes valides
 app.use(notFound);
 
